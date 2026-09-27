@@ -1,0 +1,733 @@
+---
+title: "Basketball Performance Analysis"
+author: "Manasa Kuchipudi"
+date: "2026-09-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+# NBA Basketball Regression Analysis
+
+## Overview
+
+This project analyzes NBA game data from the 2017–2019 seasons to explore how different aspects of team performance are related to margin of victory (`MOV`).
+
+The analysis uses simple and multiple linear regression to investigate relationships between basketball statistics and game outcomes. I then compare regression models and use ANOVA to determine whether shooting percentages provide statistically significant information about margin of victory.
+
+This analysis was developed from work completed in my Applied Regression course at the University of Colorado Boulder. I reorganized the analyses into this portfolio project to demonstrate my work with R, regression modeling, statistical inference, and data visualization.
+
+---
+
+
+The basketball dataset contains a random sample of NBA games from the 2017–2019 seasons.
+
+Some of the variables used in this analysis include:
+
+- `MOV`: Margin of victory
+- `X1PP`: Free-throw (one-point) shooting percentage
+- `X2PP`: Two-point shooting percentage
+- `X3PP`: Three-point shooting percentage
+- `AST`: Assists
+- `season`: NBA season
+- `game_id`: Game identifier
+- `team`: Team identifier
+
+```{r}
+bball <- read_csv("basketball.csv")
+
+glimpse(bball)
+```
+
+# 2. Exploratory Data Analysis
+
+Before building regression models, I explored relationships between the quantitative variables in the dataset.
+
+The identifying variables `season`, `game_id`, and `team` are removed from the scatterplot matrix because I am primarily interested in relationships among numerical performance statistics.
+
+```{r}
+bball_temp <- bball %>%
+  select(-season, -game_id, -team)
+
+pairs(bball_temp)
+```
+
+The exploratory plots suggest that two-point percentage, three-point percentage, and assists may have linear relationships with margin of victory.
+
+These variables are therefore useful candidates for regression modeling.
+
+---
+
+# 3. Simple Linear Regression
+
+I first examine the relationship between two-point shooting percentage (`X2PP`) and margin of victory (`MOV`).
+
+```{r}
+model1 <- lm(MOV ~ X2PP, data = bball)
+
+summary(model1)
+```
+
+The fitted regression model is approximately:
+
+\[
+\widehat{MOV} = -37.31 + 75.38(X2PP)
+\]
+
+This model explains approximately 15% of the variability in margin of victory.
+
+The residual standard error is approximately 13 points, meaning observed margins of victory typically differ from their fitted values by roughly 13 points.
+
+Although two-point percentage is related to margin of victory, much of the variation remains unexplained.
+
+This suggests that additional basketball statistics may improve the model.
+
+---
+
+# 4. Multiple Linear Regression
+
+## Adding Three-Point Percentage
+
+Next, I add three-point shooting percentage (`X3PP`) to the model.
+
+```{r}
+model2 <- lm(MOV ~ X2PP + X3PP, data = bball)
+
+summary(model2)
+```
+
+The fitted model is approximately:
+
+\[
+\widehat{MOV}
+=
+-61.67
++
+75.58(X2PP)
++
+67.42(X3PP)
+\]
+
+Adding three-point percentage substantially improves the model.
+
+The model now explains approximately 32% of the variability in margin of victory, and the residual standard error decreases to approximately 12 points.
+
+This suggests that three-point percentage provides useful information beyond two-point percentage alone.
+
+---
+
+# 5. Adding Assists
+
+Next, I investigate whether assists provide additional explanatory power.
+
+```{r}
+model3 <- lm(MOV ~ X2PP + X3PP + AST, data = bball)
+
+summary(model3)
+```
+
+The fitted model is approximately:
+
+\[
+\widehat{MOV}
+=
+-61.36
++
+67.70(X2PP)
++
+61.21(X3PP)
++
+0.25(AST)
+\]
+
+Adding assists produces relatively little additional improvement compared with the model containing only two-point and three-point percentages.
+
+This demonstrates an important issue in multiple regression: adding another predictor does not necessarily create a meaningfully better model.
+
+---
+
+# 6. Comparing the Models
+
+One way to compare regression models is using \(R^2\).
+
+However, ordinary \(R^2\) will never decrease when another predictor is added to a regression model.
+
+Because of this, adjusted \(R^2\) is more useful when comparing models containing different numbers of predictors.
+
+Adjusted \(R^2\) penalizes unnecessary model complexity.
+
+\[
+R^2_{adj}
+=
+1-
+\frac{RSS}{TSS}
+\left(
+\frac{n-1}{n-1-p}
+\right)
+\]
+
+where:
+
+- \(RSS\) = residual sum of squares
+- \(TSS\) = total sum of squares
+- \(n\) = number of observations
+- \(p\) = number of predictors
+
+I can directly compare the models in R:
+
+```{r}
+model_comparison <- data.frame(
+  Model = c(
+    "X2PP",
+    "X2PP + X3PP",
+    "X2PP + X3PP + AST"
+  ),
+  
+  R_Squared = c(
+    summary(model1)$r.squared,
+    summary(model2)$r.squared,
+    summary(model3)$r.squared
+  ),
+  
+  Adjusted_R_Squared = c(
+    summary(model1)$adj.r.squared,
+    summary(model2)$adj.r.squared,
+    summary(model3)$adj.r.squared
+  ),
+  
+  Residual_SE = c(
+    summary(model1)$sigma,
+    summary(model2)$sigma,
+    summary(model3)$sigma
+  )
+)
+
+model_comparison
+```
+
+The largest improvement occurs when three-point percentage is added to the original two-point percentage model.
+
+Adding assists produces much less improvement.
+
+---
+
+# 7. Interpreting Multiple Regression Coefficients
+
+An important difference between simple and multiple regression is how coefficients are interpreted.
+
+In multiple regression, the coefficient for a predictor describes its relationship with the response **while holding the other predictors constant**.
+
+For example, in `model3`, the coefficient for two-point percentage is approximately:
+
+\[
+67.70
+\]
+
+Because shooting percentage is represented as a decimal, a one-percentage-point increase corresponds to:
+
+\[
+0.01
+\]
+
+Therefore:
+
+\[
+67.70(0.01)=0.677
+\]
+
+A one-percentage-point increase in two-point shooting percentage is associated with an expected increase of approximately **0.677 points in margin of victory**, holding three-point percentage and assists constant.
+
+---
+
+# 8. ANOVA: Do Shooting Percentages Matter?
+
+The previous models suggest that shooting percentages are associated with margin of victory.
+
+Next, I test whether free-throw percentage, two-point percentage, and three-point percentage are useful predictors when considered together.
+
+I create a dataset containing:
+
+- Margin of victory (`MOV`)
+- Free-throw percentage (`X1PP`)
+- Two-point percentage (`X2PP`)
+- Three-point percentage (`X3PP`)
+
+```{r}
+nba <- bball %>%
+  select(MOV, X1PP, X2PP, X3PP) %>%
+  na.omit()
+```
+
+The regression model is:
+
+\[
+MOV
+=
+\beta_0
++
+\beta_1X1PP
++
+\beta_2X2PP
++
+\beta_3X3PP
++
+\epsilon
+\]
+
+---
+
+# 9. ANOVA Hypotheses
+
+The overall ANOVA test asks whether the predictors collectively provide useful information about margin of victory.
+
+The null hypothesis is:
+
+\[
+H_0:
+\beta_1
+=
+\beta_2
+=
+\beta_3
+=
+0
+\]
+
+The alternative hypothesis is:
+
+\[
+H_A:
+\text{At least one } \beta_j \neq 0
+\]
+
+I use a significance level of:
+
+\[
+\alpha = 0.01
+\]
+
+If the null hypothesis were true, none of the three shooting percentages would provide useful linear information about margin of victory.
+
+---
+
+# 10. Understanding the F-Statistic
+
+ANOVA compares variation explained by the regression model with variation that remains unexplained.
+
+The residual variation is measured using the mean squared error:
+
+\[
+MSE
+=
+\frac{RSS}{n-1-p}
+\]
+
+The variation explained by the predictors is measured using:
+
+\[
+MSG
+=
+\frac{TSS-RSS}{p}
+\]
+
+The F-statistic is:
+
+\[
+F
+=
+\frac{MSG}{MSE}
+\]
+
+A large F-statistic indicates that the regression model explains substantially more variation than would be expected from an intercept-only model.
+
+---
+
+# 11. Calculating the F-Statistic
+
+First, I fit the multiple regression model.
+
+```{r}
+model <- lm(MOV ~ ., data = nba)
+
+summary(model)
+```
+
+Next, I calculate the fitted values and sums of squares.
+
+```{r}
+nba_mod <- nba %>%
+  mutate(
+    MOV_bar = mean(MOV),
+    MOV_hat = predict(model, newdata = nba)
+  ) %>%
+  summarize(
+    TSS = sum((MOV - MOV_bar)^2),
+    RSS = sum((MOV - MOV_hat)^2)
+  )
+
+nba_mod
+```
+
+Now I calculate the F-statistic.
+
+```{r}
+n <- nrow(nba)
+p <- 3
+
+f_stat <- as.numeric(
+  ((nba_mod$TSS - nba_mod$RSS) / p) /
+  (nba_mod$RSS / (n - 1 - p))
+)
+
+f_stat
+```
+
+The observed F-statistic is approximately **163**.
+
+This is a very large F-statistic, suggesting that the model explains substantially more variation in margin of victory than an intercept-only model.
+
+---
+
+# 12. Randomization-Based ANOVA
+
+I can also examine the ANOVA test using randomization.
+
+Under the null hypothesis, shooting percentages should not have a meaningful relationship with margin of victory.
+
+Therefore, I can randomly shuffle `MOV` to break the relationship between margin of victory and the predictors.
+
+```{r}
+set.seed(1)
+
+nba_null <- nba %>%
+  mutate(
+    MOV = sample(MOV, size = n(), replace = FALSE)
+  )
+
+pairs(nba_null)
+```
+
+The relationships visible in the original data should largely disappear after the response variable is randomly shuffled.
+
+---
+
+# 13. Creating a Null Distribution
+
+I repeat the randomization process 1,000 times.
+
+For each randomized dataset, I:
+
+1. Shuffle margin of victory.
+2. Fit the regression model.
+3. Calculate an F-statistic.
+4. Store the resulting statistic.
+
+```{r}
+results <- data.frame(
+  fstat = rep(NA, 1000)
+)
+
+for (i in 1:1000) {
+  
+  set.seed(i)
+  
+  nba_null <- nba %>%
+    mutate(
+      MOV = sample(MOV, size = n(), replace = FALSE)
+    )
+  
+  model_null <- lm(MOV ~ ., data = nba_null)
+  
+  nba_pred <- nba_null %>%
+    mutate(
+      MOV_bar = mean(MOV),
+      MOV_hat = predict(model_null, newdata = nba_null)
+    ) %>%
+    summarize(
+      TSS = sum((MOV - MOV_bar)^2),
+      RSS = sum((MOV - MOV_hat)^2)
+    )
+  
+  n_null <- nrow(nba_null)
+  
+  results$fstat[i] <- as.numeric(
+    ((nba_pred$TSS - nba_pred$RSS) / 3) /
+    (nba_pred$RSS / (n_null - 1 - 3))
+  )
+}
+```
+
+---
+
+# 14. Visualizing the Randomization Distribution
+
+```{r}
+ggplot(data = results, aes(x = fstat)) +
+  geom_histogram(bins = 32) +
+  geom_vline(
+    xintercept = quantile(results$fstat, probs = 0.99),
+    linewidth = 1,
+    linetype = "dashed"
+  ) +
+  geom_vline(
+    xintercept = f_stat,
+    linewidth = 1
+  ) +
+  labs(
+    title = "NBA Margin of Victory ANOVA",
+    subtitle = "Randomization-Based Null Distribution",
+    x = "F-Statistic",
+    y = "Count"
+  ) +
+  theme_bw()
+```
+
+The F-statistics produced under the null hypothesis are concentrated near much smaller values than the observed statistic.
+
+The 1% rejection threshold from the randomization distribution is approximately **3.67**, while the observed F-statistic is approximately **163**.
+
+Because the observed statistic is far beyond the rejection threshold, I reject the null hypothesis.
+
+There is sufficient evidence that **at least one of the shooting-percentage predictors is associated with margin of victory**.
+
+---
+
+# 15. Theoretical F-Distribution
+
+Instead of generating a randomization distribution, the test can also be performed using the theoretical F-distribution.
+
+The numerator degrees of freedom are:
+
+\[
+df_1 = p = 3
+\]
+
+The denominator degrees of freedom are:
+
+\[
+df_2 = n-1-p
+\]
+
+```{r}
+set.seed(303)
+
+fdist <- data.frame(
+  fstat = rf(
+    n = 1000,
+    df1 = 3,
+    df2 = nrow(nba) - 1 - 3
+  )
+)
+```
+
+I can visualize the theoretical distribution and compare the observed statistic with the rejection threshold.
+
+```{r}
+ggplot(data = fdist, aes(x = fstat)) +
+  geom_density(adjust = 2) +
+  geom_vline(
+    xintercept = qf(
+      p = 0.01,
+      df1 = 3,
+      df2 = nrow(nba) - 1 - 3,
+      lower.tail = FALSE
+    ),
+    linewidth = 1,
+    linetype = "dashed"
+  ) +
+  geom_vline(
+    xintercept = f_stat,
+    linewidth = 1
+  ) +
+  labs(
+    title = "NBA Margin of Victory ANOVA",
+    subtitle = "Theoretical F-Distribution",
+    x = "F-Statistic",
+    y = "Density"
+  ) +
+  theme_bw()
+```
+
+The observed F-statistic falls far into the upper tail of the theoretical F-distribution.
+
+This agrees with the randomization-based analysis and provides strong evidence against the null hypothesis.
+
+---
+
+# 16. Testing Individual Predictors
+
+The overall ANOVA tells us that at least one shooting-percentage predictor is useful.
+
+However, it does not tell us which individual predictors are statistically significant.
+
+For an individual predictor, the hypotheses are:
+
+\[
+H_0:
+\beta_j = 0
+\]
+
+versus
+
+\[
+H_A:
+\beta_j \neq 0
+\]
+
+These individual coefficient tests use a t-statistic rather than an F-statistic.
+
+The test statistic has the form:
+
+\[
+t
+=
+\frac{\hat{\beta}_j - 0}
+{SE(\hat{\beta}_j)}
+\]
+
+---
+
+# 17. Free-Throw Percentage
+
+For free-throw percentage, the test statistic from the fitted model is approximately:
+
+\[
+t = 2.739
+\]
+
+I can calculate the two-sided p-value using R.
+
+```{r}
+df_resid <- nrow(nba) - 1 - 3
+
+2 * pt(
+  q = 2.739,
+  df = df_resid,
+  lower.tail = FALSE
+)
+```
+
+Because the resulting p-value is below the significance level of 0.01, I reject the null hypothesis for the free-throw percentage coefficient.
+
+After controlling for two-point and three-point shooting percentages, **free-throw percentage remains significantly associated with margin of victory**.
+
+---
+
+# 18. Visualizing the t-Distribution
+
+```{r}
+set.seed(303)
+
+tdist <- data.frame(
+  tstat = rt(
+    n = 10000,
+    df = df_resid
+  )
+)
+
+ggplot(data = tdist, aes(x = tstat)) +
+  geom_density(adjust = 2) +
+  
+  geom_vline(
+    xintercept = qt(
+      p = 0.005,
+      df = df_resid,
+      lower.tail = TRUE
+    ),
+    linewidth = 1,
+    linetype = "dashed"
+  ) +
+  
+  geom_vline(
+    xintercept = qt(
+      p = 0.005,
+      df = df_resid,
+      lower.tail = FALSE
+    ),
+    linewidth = 1,
+    linetype = "dashed"
+  ) +
+  
+  geom_vline(
+    xintercept = 2.739,
+    linewidth = 1
+  ) +
+  
+  labs(
+    title = "Free-Throw Percentage Parameter Test",
+    subtitle = "Null Distribution for the t-Statistic",
+    x = "t-Statistic",
+    y = "Density"
+  ) +
+  
+  theme_bw()
+```
+
+---
+
+# 19. Key Findings
+
+This analysis demonstrates several important concepts in applied regression.
+
+### Two-point shooting percentage is related to margin of victory
+
+The simple regression model shows a relationship between two-point shooting percentage and margin of victory, although this predictor alone explains only part of the variation in game outcomes.
+
+### Three-point percentage adds useful information
+
+Adding three-point percentage substantially improves the model compared with using two-point percentage alone.
+
+### Additional predictors do not automatically improve a model
+
+Adding assists produces relatively little improvement compared with the two-predictor model.
+
+This demonstrates why adjusted \(R^2\) is useful when comparing regression models with different numbers of predictors.
+
+### Shooting percentages collectively provide useful information
+
+The ANOVA F-test strongly rejects the hypothesis that all three shooting-percentage coefficients are zero.
+
+This provides evidence that at least one shooting-percentage variable is associated with margin of victory.
+
+### Multiple regression coefficients require conditional interpretation
+
+Each coefficient represents the expected change in margin of victory associated with that predictor **while holding the other predictors in the model constant**.
+
+---
+
+# 20. Conclusion
+
+This project used NBA basketball data to examine relationships between team performance statistics and margin of victory.
+
+Beginning with simple linear regression, I expanded the analysis to multiple regression and compared models using measures including \(R^2\), adjusted \(R^2\), and residual standard error.
+
+I then used ANOVA to test whether shooting percentages collectively provide statistically meaningful information about margin of victory. Both randomization-based inference and the theoretical F-distribution produced strong evidence against the null hypothesis.
+
+Overall, this analysis demonstrates how regression can move beyond identifying correlations to evaluating and interpreting the statistical contribution of multiple predictors.
+
+---
+
+# Skills Demonstrated
+
+- R
+- R Markdown
+- `tidyverse`
+- `ggplot2`
+- Exploratory data analysis
+- Data visualization
+- Simple linear regression
+- Multiple linear regression
+- Model comparison
+- \(R^2\) and adjusted \(R^2\)
+- ANOVA
+- F-tests
+- Randomization-based inference
+- Hypothesis testing
+- Statistical interpretation
